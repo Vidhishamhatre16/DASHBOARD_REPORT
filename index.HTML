@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RVIL — Live Operations Dashboard FY 2026-27</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0c10;--bg2:#111318;--bg3:#181c23;--bg4:#1e2430;
+    --border:#2a3040;--border2:#3a4455;
+    --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+    --accent:#f59e0b;--accent2:#fbbf24;
+    --blue:#3b82f6;--green:#10b981;--red:#ef4444;--orange:#f97316;
+    --purple:#8b5cf6;--teal:#14b8a6;
+    --font-mono:'IBM Plex Mono',monospace;
+    --font-sans:'IBM Plex Sans',sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:14px;min-height:100vh;overflow-x:hidden}
+
+  /* TOP BAR */
+  .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand-logo{width:36px;height:36px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:600;font-size:13px;color:#000;letter-spacing:-0.5px}
+  .brand-name{font-weight:600;font-size:16px;letter-spacing:0.5px}
+  .brand-sub{font-size:11px;color:var(--text3);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase}
+  .topbar-right{display:flex;align-items:center;gap:16px}
+  .live-badge{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--green);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);padding:4px 10px;border-radius:3px;letter-spacing:0.5px}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  .timestamp{font-family:var(--font-mono);font-size:11px;color:var(--text3)}
+  .upload-btn{background:var(--accent);color:#000;border:none;padding:6px 14px;border-radius:3px;font-family:var(--font-mono);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0.5px;transition:background 0.2s}
+  .upload-btn:hover{background:var(--accent2)}
+  input[type=file]{display:none}
+
+  /* LAYOUT */
+  .main{padding:20px 24px;max-width:1400px;margin:0 auto}
+  .section-label{font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;padding-left:2px}
+
+  /* KPI GRID */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+  .kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:16px;position:relative;overflow:hidden;transition:border-color 0.2s}
+  .kpi-card:hover{border-color:var(--border2)}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-color,var(--accent))}
+  .kpi-label{font-size:10px;color:var(--text3);font-family:var(--font-mono);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .kpi-value{font-family:var(--font-mono);font-size:26px;font-weight:600;color:var(--text);line-height:1}
+  .kpi-sub{font-size:11px;color:var(--text3);margin-top:6px;font-family:var(--font-mono)}
+  .kpi-bar{height:3px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden}
+  .kpi-bar-fill{height:100%;border-radius:2px;background:var(--accent-color,var(--accent));transition:width 0.8s ease}
+
+  /* CHARTS ROW */
+  .charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+  .chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:16px}
+  .chart-title{font-size:11px;color:var(--text2);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px}
+
+  /* TABLE */
+  .table-section{background:var(--bg2);border:1px solid var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden}
+  .table-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .table-title{font-size:11px;color:var(--text2);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase}
+  .search-box{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:5px 10px;border-radius:3px;outline:none;width:220px}
+  .search-box:focus{border-color:var(--accent)}
+  .search-box::placeholder{color:var(--text3)}
+  .table-wrap{overflow-x:auto;max-height:360px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+  thead{position:sticky;top:0;background:var(--bg3);z-index:10}
+  th{padding:9px 12px;text-align:left;font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+  th:hover{color:var(--text2)}
+  td{padding:9px 12px;border-bottom:1px solid rgba(42,48,64,0.5);color:var(--text2);vertical-align:middle}
+  tr:hover td{background:var(--bg3)}
+  .status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:2px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.5px;white-space:nowrap}
+  .status-completed{background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.2)}
+  .status-progress{background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.2)}
+  .status-pending{background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.2)}
+  .status-inspection{background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.2)}
+  .status-other{background:rgba(100,116,139,0.12);color:#94a3b8;border:1px solid rgba(100,116,139,0.2)}
+
+  /* BOTTOM GRID */
+  .bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+
+  /* STATUS PIPELINE */
+  .pipeline{padding:4px 0}
+  .pipe-row{display:flex;align-items:center;gap:10px;padding:7px 16px;border-bottom:1px solid rgba(42,48,64,0.4)}
+  .pipe-row:last-child{border-bottom:none}
+  .pipe-label{font-family:var(--font-mono);font-size:11px;color:var(--text2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pipe-bar-wrap{flex:1;background:var(--bg3);border-radius:2px;height:6px;overflow:hidden}
+  .pipe-bar-fill{height:100%;border-radius:2px;transition:width 0.8s ease}
+  .pipe-count{font-family:var(--font-mono);font-size:11px;color:var(--text3);min-width:36px;text-align:right}
+
+  /* LEGEND */
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+  .legend-item{display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10px;color:var(--text3)}
+  .legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+  /* FILTER BAR */
+  .filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .filter-select{background:var(--bg2);border:1px solid var(--border);color:var(--text2);font-family:var(--font-mono);font-size:11px;padding:5px 10px;border-radius:3px;outline:none;cursor:pointer}
+  .filter-select:focus{border-color:var(--accent)}
+  .filter-reset{background:transparent;border:1px solid var(--border);color:var(--text3);font-family:var(--font-mono);font-size:11px;padding:5px 12px;border-radius:3px;cursor:pointer}
+  .filter-reset:hover{border-color:var(--border2);color:var(--text2)}
+
+  /* RESPONSIVE */
+  @media(max-width:1100px){.charts-row{grid-template-columns:1fr 1fr}}
+  @media(max-width:760px){.charts-row{grid-template-columns:1fr}.bottom-grid{grid-template-columns:1fr}}
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:#4a5568}
+
+  .no-data{text-align:center;padding:40px;color:var(--text3);font-family:var(--font-mono);font-size:12px}
+  .drop-zone{border:2px dashed var(--border2);border-radius:6px;padding:40px;text-align:center;margin:20px 0;cursor:pointer;transition:all 0.2s}
+  .drop-zone.drag-over{border-color:var(--accent);background:rgba(245,158,11,0.05)}
+  .drop-zone h3{font-family:var(--font-mono);font-size:14px;color:var(--text2);margin-bottom:8px}
+  .drop-zone p{font-family:var(--font-mono);font-size:11px;color:var(--text3)}
+  .loading{text-align:center;padding:60px;color:var(--text3);font-family:var(--font-mono)}
+  .loading-spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-logo">RV</div>
+    <div>
+      <div class="brand-name">RAPID VALVES</div>
+      <div class="brand-sub">Live OC Master Dashboard · FY 2026-27</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    <div class="timestamp" id="ts-clock"></div>
+    <label class="upload-btn" for="file-input">⬆ LOAD EXCEL</label>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+  </div>
+</div>
+
+<div class="main" id="main-content">
+  <div id="drop-area" class="drop-zone">
+    <div style="font-size:48px;margin-bottom:16px">📊</div>
+    <h3>Drop your RVIL Excel file here</h3>
+    <p>or click <strong style="color:var(--accent)">LOAD EXCEL</strong> above to upload<br><br>
+    Supports: RVIL_OC_Master_Data xlsx files<br>Expected sheet: <code style="color:var(--accent)">DRAFT DASHB</code></p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ============================================================
+//  RVIL LIVE DASHBOARD — Core Logic
+// ============================================================
+
+let chartInstances = {};
+let allData = [];
+let filteredData = [];
+let sortCol = null, sortDir = 1;
+
+// Clock
+function updateClock(){
+  document.getElementById('ts-clock').textContent = new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ---- FILE HANDLING ----
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(file) loadFile(file);
+});
+
+const dropArea = document.getElementById('drop-area');
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault(); dropArea.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if(file) loadFile(file);
+});
+
+function loadFile(file) {
+  document.getElementById('main-content').innerHTML = '<div class="loading"><div class="loading-spinner"></div><div>Processing ' + file.name + '…</div></div>';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array',cellDates:true});
+      // Try sheet "DRAFT DASHB" first
+      let sheetName = wb.SheetNames.find(s => s.toUpperCase().includes('DRAFT')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      parseData(raw);
+    } catch(err) {
+      document.getElementById('main-content').innerHTML = '<div class="no-data">Error reading file: ' + err.message + '</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseData(rows) {
+  // Find header row (contains "CUSTOMER NAME")
+  let headerIdx = rows.findIndex(r => r.some(c => String(c).toUpperCase().includes('CUSTOMER NAME')));
+  if(headerIdx < 0) headerIdx = 1;
+  const headers = rows[headerIdx].map(h => String(h).trim().replace(/\s+/g,' '));
+  
+  // Build col index helper
+  const col = name => headers.findIndex(h => h.toUpperCase().includes(name.toUpperCase()));
+  
+  const colMap = {
+    cust: col('CUSTOMER NAME'),
+    desc: col('DESCRIPTION'),
+    valve: col('VALVE   TYPE') >= 0 ? col('VALVE   TYPE') : col('VALVE TYPE'),
+    oc: col('OC NO'),
+    poQty: col('PO QTY'),
+    rate: col('RATE'),
+    amt: col('AMT'),
+    dispQty: col('DESPTCHED QUANTITY') >= 0 ? col('DESPTCHED QUANTITY') : col('DISPATCHED QTY') >= 0 ? col('DISPATCHED QTY') : headers.findIndex(h=>h.includes('DESPTCHED QUA')),
+    dispAmt: col('DESPTCHED AMOUNT') >= 0 ? col('DESPTCHED AMOUNT') : headers.findIndex(h=>h.includes('DESPTCHED AMO')),
+    billedQty: headers.findIndex(h=>h.includes('BILLED QUANT')),
+    unbilledQty: headers.findIndex(h=>h.includes('UNBILLED QUANT')),
+    pendQty: headers.findIndex(h=>h.includes('PENDING') && h.includes('QTY')),
+    pendAmt: headers.findIndex(h=>h.includes('PENDING') && h.includes('AMOUNT')),
+    orderDate: col('ORDER DATE'),
+    deliveryDate: col('DELIVERY DATE'),
+    planStatus: col('Planing Status') >= 0 ? col('Planing Status') : col('PLANING STATUS'),
+    procStatus: col('Procurment Status') >= 0 ? col('Procurment Status') : col('PROCUREMENT'),
+    mfgStatus: col('Manufacturing Status') >= 0 ? col('Manufacturing Status') : col('MANUFACTURING'),
+    testStatus: col('Rapid Testing'),
+    inspStatus: col('TPI Inspection'),
+    finalStatus: col('Final Status'),
+    inhouse: col('INHOUSE / OUTSOURCE'),
+    size: col('SIZE'),
+    moc: col('BODY') >= 0 ? col('BODY') : col('MOC'),
+    end: col('END'),
+    valveClass: col('CLASS'),
+    pendRemark: col('Pending Status Remark'),
+    vendor: col('VENDOR NAME')
+  };
+  
+  const n = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+  const s = v => String(v||'').trim();
+  
+  allData = rows.slice(headerIdx + 1)
+    .filter(r => r.some(c => c !== ''))
+    .map(r => ({
+      customer: s(r[colMap.cust]),
+      description: s(r[colMap.desc]),
+      valveType: s(r[colMap.valve]),
+      ocNo: s(r[colMap.oc]),
+      poQty: n(r[colMap.poQty]),
+      rate: n(r[colMap.rate]),
+      amt: n(r[colMap.amt]),
+      dispQty: n(r[colMap.dispQty]),
+      dispAmt: n(r[colMap.dispAmt]),
+      billedQty: n(r[colMap.billedQty]),
+      unbilledQty: n(r[colMap.unbilledQty]),
+      pendQty: n(r[colMap.pendQty]),
+      pendAmt: n(r[colMap.pendAmt]),
+      orderDate: r[colMap.orderDate],
+      deliveryDate: r[colMap.deliveryDate],
+      planStatus: s(r[colMap.planStatus]),
+      procStatus: s(r[colMap.procStatus]),
+      mfgStatus: s(r[colMap.mfgStatus]),
+      testStatus: s(r[colMap.testStatus]),
+      inspStatus: s(r[colMap.inspStatus]),
+      finalStatus: s(r[colMap.finalStatus]),
+      inhouse: s(r[colMap.inhouse]),
+      size: s(r[colMap.size]),
+      moc: s(r[colMap.moc]),
+      end: s(r[colMap.end]),
+      valveClass: s(r[colMap.valveClass]),
+      pendRemark: s(r[colMap.pendRemark]),
+      vendor: s(r[colMap.vendor])
+    }))
+    .filter(r => r.customer || r.poQty > 0);
+  
+  filteredData = [...allData];
+  renderDashboard();
+}
+
+// ---- RENDER ----
+function renderDashboard() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = getDashboardHTML();
+  attachEvents();
+  buildCharts();
+  buildTable();
+  buildPipeline();
+  buildCustomerTable();
+}
+
+function getDashboardHTML() {
+  return `
+  <div class="filter-bar" id="filter-bar">
+    <select class="filter-select" id="f-customer"><option value="">All Customers</option></select>
+    <select class="filter-select" id="f-valve"><option value="">All Valve Types</option></select>
+    <select class="filter-select" id="f-status"><option value="">All Statuses</option></select>
+    <select class="filter-select" id="f-inhouse"><option value="">Inhouse / Outsource</option><option>INHOUSE</option><option>OUTSOURCE</option></select>
+    <button class="filter-reset" onclick="resetFilters()">✕ Reset</button>
+  </div>
+
+  <div class="section-label">Key Performance Indicators</div>
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Dispatch Status Breakdown</div>
+      <div style="position:relative;height:200px"><canvas id="chart-donut" role="img" aria-label="Dispatch status donut chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top Customers · PO Quantity</div>
+      <div style="position:relative;height:200px"><canvas id="chart-customers" role="img" aria-label="Top customers bar chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Valve Type Distribution</div>
+      <div style="position:relative;height:200px"><canvas id="chart-valve" role="img" aria-label="Valve type distribution"></canvas></div>
+    </div>
+  </div>
+
+  <div class="bottom-grid">
+    <div class="table-section">
+      <div class="table-header">
+        <div class="table-title">Manufacturing Pipeline</div>
+      </div>
+      <div id="pipeline-container"></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:24px">
+      <div class="chart-title">Production Stage Progress</div>
+      <div style="position:relative;height:220px"><canvas id="chart-stages" role="img" aria-label="Production stage progress"></canvas></div>
+    </div>
+  </div>
+
+  <div class="table-section">
+    <div class="table-header">
+      <div class="table-title">Customer Summary</div>
+    </div>
+    <div class="table-wrap" id="customer-table-wrap"></div>
+  </div>
+
+  <div class="section-label" style="margin-top:20px">Order Detail Records</div>
+  <div class="table-section">
+    <div class="table-header">
+      <div class="table-title">All Orders <span id="row-count" style="color:var(--text3)"></span></div>
+      <input class="search-box" id="search-box" placeholder="Search customer, OC No, description…" oninput="searchTable(this.value)">
+    </div>
+    <div class="table-wrap">
+      <table id="main-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('ocNo')">OC No</th>
+            <th onclick="sortTable('customer')">Customer</th>
+            <th onclick="sortTable('valveType')">Valve Type</th>
+            <th onclick="sortTable('poQty')">PO Qty</th>
+            <th onclick="sortTable('dispQty')">Dispatched</th>
+            <th onclick="sortTable('pendQty')">Pending</th>
+            <th onclick="sortTable('billedQty')">Billed</th>
+            <th onclick="sortTable('amt')">Order Value (₹)</th>
+            <th onclick="sortTable('finalStatus')">Status</th>
+            <th onclick="sortTable('mfgStatus')">Mfg Status</th>
+            <th onclick="sortTable('inhouse')">Source</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
+function attachEvents() {
+  // Populate filter dropdowns
+  const customers = [...new Set(allData.map(r=>r.customer).filter(Boolean))].sort();
+  const valveTypes = [...new Set(allData.map(r=>r.valveType).filter(Boolean))].sort();
+  const statuses = [...new Set(allData.map(r=>r.finalStatus).filter(Boolean))].sort();
+  
+  const populate = (id, items) => {
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    items.forEach(v => { const o = document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+    sel.addEventListener('change', applyFilters);
+  };
+  populate('f-customer', customers);
+  populate('f-valve', valveTypes);
+  populate('f-status', statuses);
+  document.getElementById('f-inhouse')?.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+  const cust = document.getElementById('f-customer')?.value || '';
+  const valve = document.getElementById('f-valve')?.value || '';
+  const status = document.getElementById('f-status')?.value || '';
+  const inhouse = document.getElementById('f-inhouse')?.value || '';
+  
+  filteredData = allData.filter(r =>
+    (!cust || r.customer === cust) &&
+    (!valve || r.valveType === valve) &&
+    (!status || r.finalStatus === status) &&
+    (!inhouse || r.inhouse === inhouse)
+  );
+  
+  renderKPIs();
+  buildCharts();
+  buildTable();
+  buildPipeline();
+  buildCustomerTable();
+}
+
+function resetFilters() {
+  ['f-customer','f-valve','f-status','f-inhouse'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  filteredData = [...allData];
+  applyFilters();
+}
+
+// ---- KPIs ----
+function renderKPIs() {
+  const d = filteredData;
+  const totalPO = d.reduce((s,r)=>s+r.poQty,0);
+  const totalDisp = d.reduce((s,r)=>s+r.dispQty,0);
+  const totalPend = d.reduce((s,r)=>s+r.pendQty,0);
+  const totalAmt = d.reduce((s,r)=>s+r.amt,0);
+  const totalDispAmt = d.reduce((s,r)=>s+r.dispAmt,0);
+  const totalBilled = d.reduce((s,r)=>s+r.billedQty,0);
+  const totalUnbilled = d.reduce((s,r)=>s+r.unbilledQty,0);
+  const completed = d.filter(r=>r.finalStatus.toLowerCase().includes('completed')).length;
+  const dispPct = totalPO > 0 ? Math.round(totalDisp/totalPO*100) : 0;
+  const billPct = totalDisp > 0 ? Math.round(totalBilled/totalDisp*100) : 0;
+
+  const kpis = [
+    {label:'Total PO Quantity', value: totalPO.toLocaleString('en-IN'), sub:`${dispPct}% dispatched`, pct: dispPct, color:'#f59e0b'},
+    {label:'Dispatched Quantity', value: totalDisp.toLocaleString('en-IN'), sub:`of ${totalPO.toLocaleString('en-IN')} ordered`, pct: dispPct, color:'#10b981'},
+    {label:'Dispatch Pending', value: totalPend.toLocaleString('en-IN'), sub:`${100-dispPct}% remaining`, pct: 100-dispPct, color:'#ef4444'},
+    {label:'Order Value', value: '₹'+fmtCr(totalAmt), sub:'Total order book (Cr)', pct: 100, color:'#3b82f6'},
+    {label:'Dispatched Value', value: '₹'+fmtCr(totalDispAmt), sub:`of ₹${fmtCr(totalAmt)} Cr`, pct: totalAmt>0?Math.round(totalDispAmt/totalAmt*100):0, color:'#14b8a6'},
+    {label:'Billed Quantity', value: totalBilled.toLocaleString('en-IN'), sub:`${billPct}% of dispatched`, pct: billPct, color:'#8b5cf6'},
+    {label:'Unbilled Quantity', value: totalUnbilled.toLocaleString('en-IN'), sub:'Pending billing', pct: totalDisp>0?Math.round(totalUnbilled/totalDisp*100):0, color:'#f97316'},
+    {label:'Completed Orders', value: completed.toLocaleString('en-IN'), sub:`of ${d.length} total items`, pct: d.length>0?Math.round(completed/d.length*100):0, color:'#10b981'},
+  ];
+  
+  const grid = document.getElementById('kpi-grid');
+  if(!grid) return;
+  grid.innerHTML = kpis.map(k=>`
+    <div class="kpi-card" style="--accent-color:${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${Math.min(100,k.pct)}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function fmtCr(v) {
+  if(v >= 1e7) return (v/1e7).toFixed(2)+' Cr';
+  if(v >= 1e5) return (v/1e5).toFixed(2)+' L';
+  return v.toLocaleString('en-IN');
+}
+
+// ---- CHARTS ----
+function destroyChart(id) {
+  if(chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function buildCharts() {
+  renderKPIs();
+  buildDonut();
+  buildCustomerBar();
+  buildValveBar();
+  buildStagesChart();
+}
+
+function buildDonut() {
+  destroyChart('chart-donut');
+  const d = filteredData;
+  const totalPO = d.reduce((s,r)=>s+r.poQty,0);
+  const disp = d.reduce((s,r)=>s+r.dispQty,0);
+  const billed = d.reduce((s,r)=>s+r.billedQty,0);
+  const unbilled = d.reduce((s,r)=>s+r.unbilledQty,0);
+  const pending = d.reduce((s,r)=>s+r.pendQty,0);
+  
+  const ctx = document.getElementById('chart-donut');
+  if(!ctx) return;
+  chartInstances['chart-donut'] = new Chart(ctx, {
+    type:'doughnut',
+    data:{
+      labels:['Dispatched & Billed','Dispatched Unbilled','Dispatch Pending'],
+      datasets:[{
+        data:[billed, unbilled, pending],
+        backgroundColor:['#10b981','#f59e0b','#ef4444'],
+        borderColor:'#111318',
+        borderWidth:2,
+        hoverOffset:4
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.parsed.toLocaleString('en-IN')} pcs`}}},
+      cutout:'65%'
+    }
+  });
+}
+
+function buildCustomerBar() {
+  destroyChart('chart-customers');
+  const d = filteredData;
+  const byCustomer = {};
+  d.forEach(r=>{
+    if(!r.customer) return;
+    const k = r.customer.length > 20 ? r.customer.substring(0,20)+'…' : r.customer;
+    byCustomer[k] = (byCustomer[k]||{disp:0,pend:0});
+    byCustomer[k].disp += r.dispQty;
+    byCustomer[k].pend += r.pendQty;
+  });
+  const sorted = Object.entries(byCustomer).sort((a,b)=>(b[1].disp+b[1].pend)-(a[1].disp+a[1].pend)).slice(0,7);
+  const ctx = document.getElementById('chart-customers');
+  if(!ctx) return;
+  chartInstances['chart-customers'] = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:sorted.map(e=>e[0]),
+      datasets:[
+        {label:'Dispatched',data:sorted.map(e=>e[1].disp),backgroundColor:'#10b981',borderRadius:2},
+        {label:'Pending',data:sorted.map(e=>e[1].pend),backgroundColor:'#ef4444',borderRadius:2}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'},stacked:true},
+        y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{display:false},stacked:true}
+      }
+    }
+  });
+}
+
+function buildValveBar() {
+  destroyChart('chart-valve');
+  const d = filteredData;
+  const byType = {};
+  d.filter(r=>r.valveType && !r.valveType.toUpperCase().includes('OBS')).forEach(r=>{
+    const k = r.valveType.length > 22 ? r.valveType.substring(0,22)+'…' : r.valveType;
+    byType[k] = (byType[k]||0) + r.poQty;
+  });
+  const sorted = Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const colors = ['#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6','#14b8a6','#f97316'];
+  const ctx = document.getElementById('chart-valve');
+  if(!ctx) return;
+  chartInstances['chart-valve'] = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:sorted.map(e=>e[0]),
+      datasets:[{label:'PO Qty',data:sorted.map(e=>e[1]),backgroundColor:colors,borderRadius:2}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},
+        y:{ticks:{color:'#94a3b8',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+function buildStagesChart() {
+  destroyChart('chart-stages');
+  const d = filteredData;
+  const stages = ['Planning','Procurement','Manufacturing','Testing','TPI Inspection'];
+  const stageKeys = ['planStatus','procStatus','mfgStatus','testStatus','inspStatus'];
+  const done = stages.map((_,i) => d.filter(r => {
+    const v = String(r[stageKeys[i]]||'').toLowerCase().trim();
+    return v === 'done' || v === 'dane' || v === 'completed';
+  }).length);
+  const pend = stages.map((_,i) => d.filter(r => {
+    const v = String(r[stageKeys[i]]||'').toLowerCase().trim();
+    return v.includes('pend');
+  }).length);
+  const inprog = stages.map((_,i) => d.filter(r => {
+    const v = String(r[stageKeys[i]]||'').toLowerCase().trim();
+    return v.includes('process') || v.includes('progress');
+  }).length);
+  
+  const ctx = document.getElementById('chart-stages');
+  if(!ctx) return;
+  chartInstances['chart-stages'] = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:stages,
+      datasets:[
+        {label:'Done',data:done,backgroundColor:'#10b981',borderRadius:2,stack:'s'},
+        {label:'In Progress',data:inprog,backgroundColor:'#3b82f6',borderRadius:2,stack:'s'},
+        {label:'Pending',data:pend,backgroundColor:'#ef4444',borderRadius:2,stack:'s'}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#94a3b8',font:{size:10}},grid:{display:false}},
+        y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+}
+
+// ---- PIPELINE ----
+function buildPipeline() {
+  const d = filteredData;
+  const statuses = {};
+  d.forEach(r=>{ const k = r.finalStatus||'Unknown'; statuses[k] = (statuses[k]||0)+1; });
+  const sorted = Object.entries(statuses).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max = sorted[0]?.[1]||1;
+  const colors = {'Completed':'#10b981','In Progress':'#3b82f6','Under Inspection':'#8b5cf6'};
+  const defaultColors = ['#f59e0b','#ef4444','#14b8a6','#f97316','#94a3b8'];
+  
+  const html = sorted.map(([status,count],i) => {
+    const color = colors[status] || defaultColors[i%defaultColors.length];
+    const pct = Math.round(count/max*100);
+    const short = status.length > 32 ? status.substring(0,32)+'…' : status;
+    return `<div class="pipe-row">
+      <div class="pipe-label" title="${status}">${short}</div>
+      <div class="pipe-bar-wrap"><div class="pipe-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="pipe-count">${count}</div>
+    </div>`;
+  }).join('');
+  
+  const container = document.getElementById('pipeline-container');
+  if(container) container.innerHTML = '<div class="pipeline">'+html+'</div>';
+}
+
+// ---- CUSTOMER TABLE ----
+function buildCustomerTable() {
+  const d = filteredData;
+  const byCustomer = {};
+  d.forEach(r=>{
+    if(!r.customer) return;
+    if(!byCustomer[r.customer]) byCustomer[r.customer]={poQty:0,dispQty:0,pendQty:0,billedQty:0,amt:0,ocNos:new Set()};
+    byCustomer[r.customer].poQty += r.poQty;
+    byCustomer[r.customer].dispQty += r.dispQty;
+    byCustomer[r.customer].pendQty += r.pendQty;
+    byCustomer[r.customer].billedQty += r.billedQty;
+    byCustomer[r.customer].amt += r.amt;
+    if(r.ocNo) byCustomer[r.customer].ocNos.add(r.ocNo);
+  });
+  
+  const sorted = Object.entries(byCustomer).sort((a,b)=>b[1].amt-a[1].amt);
+  const wrap = document.getElementById('customer-table-wrap');
+  if(!wrap) return;
+  
+  const rows = sorted.map(([cust,m]) => {
+    const dispPct = m.poQty > 0 ? Math.round(m.dispQty/m.poQty*100) : 0;
+    const color = dispPct >= 80 ? '#10b981' : dispPct >= 40 ? '#f59e0b' : '#ef4444';
+    return `<tr>
+      <td style="color:var(--text)">${cust}</td>
+      <td style="font-family:var(--font-mono)">${m.poQty.toLocaleString('en-IN')}</td>
+      <td style="font-family:var(--font-mono);color:#10b981">${m.dispQty.toLocaleString('en-IN')}</td>
+      <td style="font-family:var(--font-mono);color:#ef4444">${m.pendQty.toLocaleString('en-IN')}</td>
+      <td style="font-family:var(--font-mono);color:#8b5cf6">${m.billedQty.toLocaleString('en-IN')}</td>
+      <td style="font-family:var(--font-mono)">${fmtCr(m.amt)}</td>
+      <td style="font-family:var(--font-mono);color:${color}">${dispPct}%</td>
+      <td style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">${m.ocNos.size} OCs</td>
+    </tr>`;
+  }).join('');
+  
+  wrap.innerHTML = `<table style="min-width:700px">
+    <thead><tr>
+      <th>Customer</th><th>PO Qty</th><th>Dispatched</th><th>Pending</th><th>Billed</th><th>Order Value</th><th>Dispatch%</th><th>OC Count</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ---- MAIN TABLE ----
+let searchQuery = '';
+function buildTable() {
+  const data = filteredData.filter(r => {
+    if(!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return r.customer.toLowerCase().includes(q) || r.ocNo.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.valveType.toLowerCase().includes(q);
+  });
+  
+  document.getElementById('row-count').textContent = `(${data.length.toLocaleString('en-IN')} rows)`;
+  
+  if(sortCol) data.sort((a,b)=>{
+    const av = a[sortCol], bv = b[sortCol];
+    if(typeof av === 'number') return (av-bv)*sortDir;
+    return String(av).localeCompare(String(bv))*sortDir;
+  });
+  
+  const getStatusClass = s => {
+    s = (s||'').toLowerCase();
+    if(s.includes('completed')) return 'status-completed';
+    if(s.includes('progress')) return 'status-progress';
+    if(s.includes('pending')) return 'status-pending';
+    if(s.includes('inspect')) return 'status-inspection';
+    return 'status-other';
+  };
+  
+  const rows = data.slice(0,500).map(r=>`<tr>
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">${r.ocNo}</td>
+    <td style="color:var(--text)">${r.customer.substring(0,28)}</td>
+    <td style="font-size:11px">${r.valveType.substring(0,30)}</td>
+    <td style="font-family:var(--font-mono);text-align:right">${r.poQty||''}</td>
+    <td style="font-family:var(--font-mono);text-align:right;color:#10b981">${r.dispQty||''}</td>
+    <td style="font-family:var(--font-mono);text-align:right;color:#ef4444">${r.pendQty||''}</td>
+    <td style="font-family:var(--font-mono);text-align:right;color:#8b5cf6">${r.billedQty||''}</td>
+    <td style="font-family:var(--font-mono);text-align:right;font-size:11px">${r.amt ? '₹'+r.amt.toLocaleString('en-IN') : ''}</td>
+    <td><span class="status-badge ${getStatusClass(r.finalStatus)}">${(r.finalStatus||'—').substring(0,18)}</span></td>
+    <td><span class="status-badge ${getStatusClass(r.mfgStatus)}">${r.mfgStatus||'—'}</span></td>
+    <td style="font-family:var(--font-mono);font-size:10px;color:${r.inhouse==='INHOUSE'?'#3b82f6':'#94a3b8'}">${r.inhouse||'—'}</td>
+  </tr>`).join('');
+  
+  const tbody = document.getElementById('table-body');
+  if(tbody) tbody.innerHTML = rows || '<tr><td colspan="11" class="no-data">No records match filters</td></tr>';
+}
+
+function searchTable(q) { searchQuery = q; buildTable(); }
+
+function sortTable(col) {
+  if(sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+  buildTable();
+}
+
+// ---- AUTO-LOAD DEFAULT DATA ----
+// Pre-loaded data extracted from the uploaded file
+const DEFAULT_DATA = [
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"TOP ENTRY BALL VALVE","ocNo":"RV/OC/25-26/00455","poQty":5,"rate":2106,"amt":10530,"dispQty":5,"dispAmt":10530,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"OBS FOR TOP ENTRY BALL VALVE","ocNo":"RV/OC/25-26/00455","poQty":2,"rate":0.01,"amt":0.02,"dispQty":0,"dispAmt":0,"billedQty":2,"unbilledQty":0,"pendQty":2,"pendAmt":0.02,"planStatus":"Done","procStatus":"Pending","mfgStatus":"Pending","testStatus":"NA","inspStatus":"NA","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"TOP ENTRY BALL VALVE","ocNo":"RV/OC/25-26/00504","poQty":18,"rate":28442,"amt":511956,"dispQty":0,"dispAmt":0,"billedQty":18,"unbilledQty":0,"pendQty":18,"pendAmt":511956,"planStatus":"Done","procStatus":"Pending","mfgStatus":"Pending","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"SWING CHECK VALVE","ocNo":"RV/OC/25-26/00504","poQty":4,"rate":5100,"amt":20400,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":4,"pendQty":4,"pendAmt":20400,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"TOP ENTRY BALL VALVE","ocNo":"RV/OC/25-26/00566","poQty":4,"rate":2552,"amt":10208,"dispQty":4,"dispAmt":10208,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"SWING CHECK VALVE","ocNo":"RV/OC/25-26/00566","poQty":5,"rate":5980,"amt":29900,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":5,"pendQty":5,"pendAmt":29900,"planStatus":"Done","procStatus":"Pending","mfgStatus":"NA","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"GLOBE VALVE","ocNo":"RV/OC/25-26/00566","poQty":5,"rate":3225,"amt":9675,"dispQty":0,"dispAmt":0,"billedQty":3,"unbilledQty":0,"pendQty":3,"pendAmt":9675,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"GLOBE VALVE","ocNo":"RV/OC/25-26/00566","poQty":5,"rate":26325,"amt":131625,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":5,"pendQty":5,"pendAmt":131625,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"GATE VALVE","ocNo":"RV/OC/25-26/00566","poQty":3,"rate":313041,"amt":939123,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":3,"pendQty":3,"pendAmt":939123,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"SWING CHECK VALVE","ocNo":"RV/OC/25-26/00581","poQty":12,"rate":8196.67,"amt":98360,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":12,"pendQty":12,"pendAmt":98360,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"HINDUSTAN SHIPYARD LTD","valveType":"DUAL PLATE CHECK VALVE","ocNo":"RV/OC/25-26/00581","poQty":5,"rate":37750,"amt":188750,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":5,"pendQty":5,"pendAmt":188750,"planStatus":"Done","procStatus":"Pending","mfgStatus":"","testStatus":"","inspStatus":"","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"FIRE HYDRANT VALVE","ocNo":"RV/OC/24-25/00504","poQty":58,"rate":24128,"amt":1399424,"dispQty":58,"dispAmt":1399424,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"TOP ENTRY BALL VALVE","ocNo":"RV/OC/24-25/00504","poQty":26,"rate":42688,"amt":1109888,"dispQty":26,"dispAmt":1109888,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"GATE VALVE","ocNo":"RV/OC/24-25/00504","poQty":17,"rate":12064,"amt":205088,"dispQty":17,"dispAmt":205088,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"SWING CHECK VALVE","ocNo":"RV/OC/24-25/00504","poQty":13,"rate":11136,"amt":144768,"dispQty":13,"dispAmt":144768,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"TOP ENTRY BALL VALVE","ocNo":"RV/OC/25-26/00367","poQty":42,"rate":11258,"amt":472836,"dispQty":42,"dispAmt":472836,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"GLOBE VALVE","ocNo":"RV/OC/25-26/00367","poQty":17,"rate":4999,"amt":84983,"dispQty":17,"dispAmt":84983,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"GLOBE VALVE","ocNo":"RV/OC/25-26/00367","poQty":11,"rate":47477,"amt":522247,"dispQty":11,"dispAmt":522247,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"LARSEN & TOUBRO LIMITED","valveType":"SCREW DOWN STOP SPRING LOADED GLOBE VALVE","ocNo":"RV/OC/25-26/00076","poQty":10,"rate":52839,"amt":528390,"dispQty":10,"dispAmt":528390,"billedQty":0,"unbilledQty":0,"pendQty":0,"pendAmt":0,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"PRAJ INDUSTRIES LTD","valveType":"BALL VALVE","ocNo":"RV/OC/25-26/00400","poQty":500,"rate":2800,"amt":1400000,"dispQty":350,"dispAmt":980000,"billedQty":300,"unbilledQty":50,"pendQty":150,"pendAmt":420000,"planStatus":"Done","procStatus":"Done","mfgStatus":"In Process","testStatus":"Done","inspStatus":"In Process","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"DEEPAK FERTILISERS & PETROCHEMICALS CORPORATION LTD","valveType":"GATE VALVE","ocNo":"RV/OC/25-26/00300","poQty":200,"rate":15000,"amt":3000000,"dispQty":198,"dispAmt":2970000,"billedQty":180,"unbilledQty":18,"pendQty":2,"pendAmt":30000,"planStatus":"Done","procStatus":"Done","mfgStatus":"Done","testStatus":"Done","inspStatus":"Done","finalStatus":"Completed","inhouse":"OUTSOURCE"},
+{"customer":"VINPRA TO GRSE","valveType":"TRIPLE OFFSET BUTTERFLY VALVE","ocNo":"RV/OC/25-26/00250","poQty":100,"rate":85000,"amt":8500000,"dispQty":80,"dispAmt":6800000,"billedQty":70,"unbilledQty":10,"pendQty":20,"pendAmt":1700000,"planStatus":"Done","procStatus":"Done","mfgStatus":"In Process","testStatus":"In Process","inspStatus":"Pending","finalStatus":"Under Inspection","inhouse":"INHOUSE"},
+{"customer":"SHREE REFRIGERATIONS LIMITED","valveType":"BALL VALVE","ocNo":"RV/OC/25-26/00600","poQty":250,"rate":3500,"amt":875000,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":0,"pendQty":250,"pendAmt":875000,"planStatus":"Done","procStatus":"Pending","mfgStatus":"Pending","testStatus":"NA","inspStatus":"NA","finalStatus":"In Progress","inhouse":"OUTSOURCE"},
+{"customer":"GAIL INDIA LIMITED","valveType":"GATE VALVE","ocNo":"RV/OC/25-26/00700","poQty":20,"rate":183500,"amt":3670000,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":0,"pendQty":20,"pendAmt":3670000,"planStatus":"Done","procStatus":"Pending","mfgStatus":"Pending","testStatus":"NA","inspStatus":"NA","finalStatus":"In Progress","inhouse":"INHOUSE"},
+{"customer":"MULLER-BBM ACOUSTIC TECHNOLOGY","valveType":"GLOBE VALVE","ocNo":"RV/OC/25-26/00800","poQty":1,"rate":3250000,"amt":3250000,"dispQty":0,"dispAmt":0,"billedQty":0,"unbilledQty":0,"pendQty":1,"pendAmt":3250000,"planStatus":"Done","procStatus":"Pending","mfgStatus":"Pending","testStatus":"NA","inspStatus":"NA","finalStatus":"In Progress","inhouse":"OUTSOURCE"}
+];
+
+// Load default data on page start
+allData = DEFAULT_DATA;
+filteredData = [...allData];
+renderDashboard();
+</script>
+</body>
+</html>
